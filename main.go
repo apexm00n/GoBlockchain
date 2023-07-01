@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"log"
 	"time"
+	"strings"
 )
 
 type Block struct {
-	nonce int
-	previousHash string
-	timestamp int64
-	transactions [] string
+	nonce 		    int
+	previousHash    string
+	timestamp 	    int64
+	transactions    []string
 }
 
 func NewBlock(nonce int, previousHash string) *Block {
@@ -28,11 +29,38 @@ func (b *Block) Print(){
 	fmt.Printf("transactions 	%s\n", b.transactions)
 }
 
+
+type BlockChain struct {
+	transactionPool []string
+	chain 			[]*Block
+}
+
+func (bc *BlockChain) CreateBlock(nonce int, previousHash string) *Block{
+	b := NewBlock(nonce, previousHash)
+	bc.chain = append(bc.chain, b)
+	return b
+}
+
+func NewBlockhain() *BlockChain {
+	bc := new(BlockChain)
+	bc.CreateBlock(0, "Init hash")
+	return bc
+}
+
+func (bc *BlockChain) Print(){
+	for i, block := range bc.chain{
+		fmt.Printf("%s Chain %d %s\n", strings.Repeat("=", 25), i, strings.Repeat("=", 25))
+		block.Print()
+	}
+}
+
+
 func init() {
 	log.SetPrefix("Blockchain: ")
 }
 
 func main(){
-	b := NewBlock(0, "initHash")
-	b.Print()
+	blockchain := NewBlockhain()
+	blockchain.CreateBlock(6, "HASH")
+	blockchain.Print()
 }
