@@ -6,7 +6,7 @@ import (
 )
 
 func init() {
-	log.SetPrefix("Blockchain: ")
+	log.SetPrefix("Blockchain_Server: ")
 }
 
 func main() {
