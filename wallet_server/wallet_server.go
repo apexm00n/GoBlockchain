@@ -1,7 +1,10 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"go/build"
+	"goblockchain/utils"
 	"goblockchain/wallet"
 	"html/template"
 	"io"
@@ -53,8 +56,38 @@ func (ws *WalletServer) Wallet(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func (ws *WalletServer) CreateTransaction(w http.ResponseWriter, req *http.Request) {
+	switch req.Method {
+		case http.MethodPost:
+			decoder := json.NewDecoder(req.Body)
+			var t *wallet.TransactionRequest
+			err := decoder.Decode(&t)
+			if err != nil {
+				log.Printf("ERROR: %v", err)
+				io.WriteString(w, string(utils.JsonStatus("fail")))
+				return
+			}
+			if !t.Validate() {
+				log.Printf("ERROR: missing field(s)")
+				io.WriteString(w, string(utils.JsonStatus("fail")))
+				return
+			}
+
+			fmt.Println(*t.SenderPrivateKey)
+			fmt.Println(*t.SenderPublicKey)
+			fmt.Println(*t.SenderBlockchainAddress)
+			fmt.Println(*t.RecipientBlockchainAddress)
+			fmt.Println(*t.Value)
+
+		default:
+			w.WriteHeader(http.StatusBadRequest)
+			log.Println("ERROR: Invalid HTTP Method")
+	}
+}
+
 func (ws *WalletServer) Run() {
 	http.HandleFunc("/", ws.Index)
 	http.HandleFunc("/wallet", ws.Wallet)
+	http.HandleFunc("/transaction", ws.CreateTransaction)
 	log.Fatal(http.ListenAndServe("0.0.0.0:"+strconv.Itoa(int(ws.port)), nil))
 }
