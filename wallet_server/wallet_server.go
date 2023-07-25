@@ -97,7 +97,6 @@ func (ws *WalletServer) CreateTransaction(w http.ResponseWriter, req *http.Reque
 			
 			m, _ := json.Marshal(bt)
 			buf := bytes.NewBuffer(m)
-			fmt.Println(buf)
 			resp, err := http.Post(ws.Gateway() + "/transactions", "application/json", buf)
 			if err != nil {
 				fmt.Println("ERROR:" + err.Error())
