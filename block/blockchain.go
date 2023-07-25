@@ -92,6 +92,10 @@ func(bc *BlockChain) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (bc *BlockChain) TransactionPool() []*Transaction {
+	return bc.transactionPool
+}
+
 func (bc *BlockChain) Print() {
 	for i, block := range bc.chain {
 		fmt.Printf("%s Chain %d %s\n", strings.Repeat("=", 25), i, strings.Repeat("=", 25))
@@ -103,6 +107,16 @@ func (bc *BlockChain) LastBlock() *Block {
 	return bc.chain[len(bc.chain)-1]
 }
 
+func (bc *BlockChain) CreateTransaction(sender string, recipient string, value float32,
+	senderPublicKey *ecdsa.PublicKey, s *utils.Signature) bool {
+	isTransacted := bc.AddTransaction(sender, recipient, value, senderPublicKey, s)
+
+	// TODO
+	// Sync 
+
+	return isTransacted
+}
+
 func (bc *BlockChain) AddTransaction(sender string, recipient string, value float32,
 	senderPublicKey *ecdsa.PublicKey, s *utils.Signature) bool {
 	t := NewTransaction(sender, recipient, value)
@@ -111,12 +125,11 @@ func (bc *BlockChain) AddTransaction(sender string, recipient string, value floa
 		bc.transactionPool = append(bc.transactionPool, t)
 		return true
 	}
-
 	if bc.VerifyTransactionSignature(senderPublicKey, s, t) {
-		if bc.CalculateTotalAmount(sender) < value {
-			log.Println("ERROR: Not enough balance in a wallet")
-			return false
-		}
+		// if bc.CalculateTotalAmount(sender) < value {
+		// 	log.Println("ERROR: Not enough balance in a wallet")
+		// 	return false
+		// }
 		bc.transactionPool = append(bc.transactionPool, t)
 		return true
 	} else {
@@ -210,4 +223,33 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 		Recipient: t.recipientBlockchainAddress,
 		Value:     t.value,
 	})
+}
+
+
+type TransactionRequest struct {
+	SenderBlockchainAddress    *string `json:"sender_blockchain_address"`
+	RecipientBlockchainAddress *string `json:"recipient_blockchain_address"`
+	SenderPublicKey            *string `json:"sender_public_key"`
+	Value                      *float32 `json:"value"`
+	Signature                  *string `json:"signature"`
+}
+
+func (tx *TransactionRequest) GetTransactionRequest() {
+	fmt.Printf("%s\n", strings.Repeat("-", 40))
+	fmt.Printf("sender_blockchain_address    %s\n", *tx.SenderBlockchainAddress)
+	fmt.Printf("recipient_blockchain_address %s\n", *tx.RecipientBlockchainAddress)
+	fmt.Printf("sender_public_key %s\n", *tx.SenderPublicKey)
+	fmt.Printf("value                        %.1f\n", *tx.Value)
+	fmt.Printf("signature                        %s\n", *tx.Signature)
+}
+
+func (tr *TransactionRequest) Validate() bool {
+	if tr.SenderBlockchainAddress == nil ||
+	tr.RecipientBlockchainAddress == nil ||
+	tr.SenderPublicKey == nil ||
+	tr.Value == nil ||
+	tr.Signature == nil {
+		return false
+	}
+	return true
 }
