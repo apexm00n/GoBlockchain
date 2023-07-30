@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"net"
+	"os"
 	"regexp"
 	"strconv"
 	"time"
@@ -40,4 +41,18 @@ func FindNeighbors (myHost string, myPort uint16, startIp uint8, endIp uint8, st
 		}
 	}
 	return neighbors
+}
+
+func GetHost() string {
+	hostname, err := os.Hostname()
+	if err != nil {
+		return "127.0.0.1"
+	}
+	fmt.Println(hostname)
+	address, err := net.LookupHost(hostname)
+	if err != nil {
+		return "127.0.0.1"
+	}
+	fmt.Println(address)
+	return address[0]
 }

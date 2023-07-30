@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"goblockchain/block"
 	"goblockchain/utils"
 	"goblockchain/wallet"
@@ -30,7 +29,7 @@ func (bcs *BlockchainServer) GetBlockchain() *block.BlockChain {
 	bc, ok := cache["blockchain"]
 	if !ok {
 		minersWallet := wallet.NewWallet()
-		bc = block.NewBlockhain(minersWallet.BlockChainAddress(), bcs.port)
+		bc = block.NewBlockchain(minersWallet.BlockChainAddress(), bcs.port)
 		cache["blockchain"] = bc
 		log.Printf("private_key %v", minersWallet.PrivateKeyStr())
 		log.Printf("public_key %v", minersWallet.PublicKeyStr())
@@ -66,7 +65,6 @@ func (bcs *BlockchainServer) Transactions(w http.ResponseWriter, req *http.Reque
 		})
 		io.WriteString(w, string(m[:]))
 	case http.MethodPost:
-		fmt.Println(req.Body)
 		decoder := json.NewDecoder(req.Body)
 		var t block.TransactionRequest
 		err := decoder.Decode(&t)
@@ -95,6 +93,37 @@ func (bcs *BlockchainServer) Transactions(w http.ResponseWriter, req *http.Reque
 			m = utils.JsonStatus("success")
 		}
 		io.WriteString(w, string(m))
+	case http.MethodPut:
+		decoder := json.NewDecoder(req.Body)
+		var t block.TransactionRequest
+		err := decoder.Decode(&t)
+		if err != nil {
+			log.Printf("ERROR: %v", err)
+			io.WriteString(w, string((utils.JsonStatus("fail"))))
+			return
+		}
+		if !t.Validate() { 
+			log.Println("ERROR: missing field(s)")
+			return
+		}
+		publicKey := utils.PublicKeyFromString(*t.SenderPublicKey)
+		signature := utils.SignatureFromString(*t.Signature)
+		bc := bcs.GetBlockchain()
+		isUpdated := bc.AddTransaction(*t.SenderBlockchainAddress, *t.RecipientBlockchainAddress, *t.Value, publicKey, signature)
+		w.Header().Add("Content-Type", "application/json")
+		var m []byte
+		if !isUpdated {
+			w.WriteHeader(http.StatusBadRequest)
+			m = utils.JsonStatus("fail")
+		} else {
+			w.WriteHeader(http.StatusCreated)
+			m = utils.JsonStatus("success")
+		}
+		io.WriteString(w, string(m))
+	case http.MethodDelete:
+		bc := bcs.GetBlockchain()
+		bc.ClearTransactionPool()
+		io.WriteString(w, string(utils.JsonStatus("success")))
 	default:
 		log.Printf("ERROR: Invalid HTTP Method")	
 		w.WriteHeader(http.StatusBadRequest)	
@@ -121,7 +150,7 @@ func (bcs *BlockchainServer) Mine (w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (bcs *BlockchainServer) StartMine (w http.ResponseWriter, req *http.Request) {
+func (bcs *BlockchainServer) StartMine(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodGet:
 		bc := bcs.GetBlockchain()
@@ -149,6 +178,7 @@ func (bcs *BlockchainServer) Amount (w http.ResponseWriter, req *http.Request) {
 }
 
 func (bcs *BlockchainServer) Run() {
+	bcs.GetBlockchain().Run()
 	http.HandleFunc("/", bcs.GetChain)
 	http.HandleFunc("/transactions", bcs.Transactions)
 	http.HandleFunc("/mine", bcs.Mine)

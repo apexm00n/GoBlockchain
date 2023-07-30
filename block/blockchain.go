@@ -1,15 +1,17 @@
 package block
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"goblockchain/utils"
 	"log"
+	"net/http"
 	"strings"
-	"time"
 	"sync"
+	"time"
 )
 
 const (
@@ -17,6 +19,11 @@ const (
 	MINING_SENDER    = "THE BLOCKCHAIN"
 	MINING_REWARD    = 1.0
 	MINING_TIMER_SEC = 100
+	BLOCKCHAIN_PORT_RANGE_START = 5001
+	BLOCKCHAIN_PORT_RANGE_END = 5004
+	NEIGHBOR_IP_RANGE_START = 0
+	NEIGHBOR_IP_RANGE_END = 1
+	BLOCKCHAIN_NEIGHBOR_SYNC_TIME_SEC = 20
 )
 
 type Block struct {
@@ -69,22 +76,36 @@ type BlockChain struct {
 	blockhainAddress string
 	port			 uint16
 	mux              sync.Mutex
+	neighbors 		 []string
+	muxNeighbors     sync.Mutex
 }
 
 func (bc *BlockChain) CreateBlock(nonce int, previousHash [32]byte) *Block {
 	b := NewBlock(nonce, previousHash, bc.transactionPool)
 	bc.chain = append(bc.chain, b)
 	bc.transactionPool = []*Transaction{}
+	for _, n := range bc.neighbors {
+		endpoint := fmt.Sprintf("http://%s/transactions", n)
+		client := &http.Client{}
+		req, _ := http.NewRequest("DELETE", endpoint, nil)
+		resp, _ := client.Do(req)
+		log.Printf("%v", resp)
+	}
 	return b
 }
 
-func NewBlockhain(blockhainAddress string, port uint16) *BlockChain {
+func NewBlockchain(blockhainAddress string, port uint16) *BlockChain {
 	b := &Block{}
 	bc := new(BlockChain)
 	bc.blockhainAddress = blockhainAddress
 	bc.CreateBlock(0, b.Hash())
 	bc.port = port
 	return bc
+}
+
+func (bc *BlockChain) SetNeighbors() {
+	bc.neighbors = utils.FindNeighbors("127.0.0.1", bc.port, NEIGHBOR_IP_RANGE_START, NEIGHBOR_IP_RANGE_END, BLOCKCHAIN_PORT_RANGE_START, BLOCKCHAIN_PORT_RANGE_END)
+	log.Printf("%v", bc.neighbors)
 }
 
 func(bc *BlockChain) MarshalJSON() ([]byte, error) {
@@ -95,8 +116,27 @@ func(bc *BlockChain) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (bc *BlockChain) SyncNeighbors(){
+	bc.muxNeighbors.Lock()
+	defer bc.muxNeighbors.Unlock()
+	bc.SetNeighbors()
+}
+
+func (bc *BlockChain) StartSyncNeighbors(){
+	bc.SyncNeighbors()
+	_ = time.AfterFunc(time.Second * BLOCKCHAIN_NEIGHBOR_SYNC_TIME_SEC, bc.StartSyncNeighbors)
+}
+
+func (bc *BlockChain) Run(){
+	bc.StartSyncNeighbors()
+}
+
 func (bc *BlockChain) TransactionPool() []*Transaction {
 	return bc.transactionPool
+}
+
+func (bc *BlockChain) ClearTransactionPool() {
+	bc.transactionPool = bc.transactionPool[:0]
 }
 
 func (bc *BlockChain) Print() {
@@ -113,9 +153,22 @@ func (bc *BlockChain) LastBlock() *Block {
 func (bc *BlockChain) CreateTransaction(sender string, recipient string, value float32,
 	senderPublicKey *ecdsa.PublicKey, s *utils.Signature) bool {
 	isTransacted := bc.AddTransaction(sender, recipient, value, senderPublicKey, s)
-
-	// TODO
-	// Sync 
+	
+	if isTransacted {
+		for _, n := range bc.neighbors {
+			publicKeyStr := fmt.Sprintf("%064x%064x", senderPublicKey.X.Bytes(), senderPublicKey.Y.Bytes())
+			signatureStr := s.String()
+			bt := &TransactionRequest{
+				&sender, &recipient, &publicKeyStr, &value, &signatureStr}
+			m, _ := json.Marshal(bt)
+			buf := bytes.NewBuffer(m)
+			endpoint := fmt.Sprintf("http://%s/transactions", n)
+			client := &http.Client{}
+			req, _ := http.NewRequest("PUT", endpoint, buf)
+			resp, _ := client.Do(req)
+			log.Printf("%v", resp)
+		}
+	}
 
 	return isTransacted
 }
