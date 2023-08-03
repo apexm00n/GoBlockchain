@@ -13,7 +13,6 @@ func IsFoundHost (host string, port uint16) bool {
 	target := fmt.Sprintf("%s:%d", host, port)
 	_, err := net.DialTimeout("tcp", target, 1 * time.Second)
 	if err != nil {
-		fmt.Printf("%s %v\n", target, err)
 		return false
 	}
 	return true
@@ -48,11 +47,9 @@ func GetHost() string {
 	if err != nil {
 		return "127.0.0.1"
 	}
-	fmt.Println(hostname)
 	address, err := net.LookupHost(hostname)
 	if err != nil {
 		return "127.0.0.1"
 	}
-	fmt.Println(address)
 	return address[0]
 }
